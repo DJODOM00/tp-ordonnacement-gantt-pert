@@ -1,70 +1,73 @@
-# Getting Started with Create React App
+# Techniques d'Ordonnancement GANTT-PERT
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![React](https://img.shields.io/badge/React-18.x-61DAFB.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-## Available Scripts
+## 📋 Description
 
-In the project directory, you can run:
+Cette application web permet de créer et visualiser des diagrammes de GANTT et PERT pour la gestion et la planification de projets. Développée en React, elle offre une interface intuitive pour définir des tâches, leurs durées et leurs dépendances, puis générer automatiquement les représentations graphiques correspondantes.
 
-### `npm start`
+## ✨ Fonctionnalités
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Diagramme de GANTT
+- Création de tâches avec ID, nom et durée
+- Définition des dépendances entre tâches (tâches antérieures)
+- Calcul automatique des dates de début et de fin
+- Visualisation chronologique des tâches
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Diagramme PERT
+- Représentation des tâches sous forme d'arcs et des événements sous forme de nœuds
+- Calcul automatique des dates au plus tôt et au plus tard
+- Identification du chemin critique
+- Gestion des tâches avec plusieurs antérieurs via des tâches fictives
+- Affichage clair des niveaux et des dépendances
 
-### `npm test`
+## 🖼️ Captures d'écran
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+*[Insérez des captures d'écran de votre application ici]*
 
-### `npm run build`
+## 🚀 Installation et démarrage
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+# Cloner le dépôt
+git clone https://github.com/votre-username/techniques-ordonnancement-gantt-pert.git
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# Accéder au répertoire du projet
+cd techniques-ordonnancement-gantt-pert
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Installer les dépendances
+npm install
 
-### `npm run eject`
+# Lancer l'application en mode développement
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+L'application sera accessible à l'adresse [http://localhost:3000](http://localhost:3000).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 🔧 Technologies utilisées
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- **React.js** - Framework JavaScript pour l'interface utilisateur
+- **SVG** - Pour le rendu des diagrammes PERT
+- **CSS** - Pour le style et la mise en page
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 📚 Concepts théoriques
 
-## Learn More
+### Diagramme de GANTT
+Un diagramme de GANTT est un outil de gestion de projet qui permet de visualiser l'avancement des différentes tâches (activités) constituant un projet. Il s'agit d'un diagramme à barres horizontales, où chaque barre représente une tâche, sa durée, et éventuellement ses dépendances avec d'autres tâches.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Diagramme PERT
+Le diagramme PERT (Program Evaluation and Review Technique) est une méthode d'analyse utilisée pour planifier, organiser et coordonner des tâches dans un projet. Il représente graphiquement les tâches sous forme d'arcs et les événements sous forme de nœuds, permettant d'identifier le chemin critique (séquence de tâches qui détermine la durée minimale du projet).
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 👥 Contribution
 
-### Code Splitting
+Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à soumettre une pull request.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 📄 Licence
 
-### Analyzing the Bundle Size
+Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 🙏 Remerciements
 
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Merci à tous ceux qui ont contribué à ce projet
+- Inspiré par les cours de Recherche Opérationnelle et Gestion de Projet
