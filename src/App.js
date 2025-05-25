@@ -502,65 +502,112 @@ function App() {
   const identifyCriticalPath = (nodes, edges) => {
     // Réinitialiser le statut critique pour tous les arcs
     edges.forEach(edge => {
+      // Ne pas marquer les arcs fictifs comme critiques
+      if (edge.isFictitious) {
+        edge.isCritical = false;
+        return;
+      }
+      
       const sourceNode = nodes.find(n => n.id === edge.source);
       const targetNode = nodes.find(n => n.id === edge.target);
       
       if (sourceNode && targetNode) {
-        // Un arc est sur le chemin critique si la date au plus tôt du sommet source + durée = date au plus tôt du sommet cible
-        // ET si la date au plus tard du sommet source + durée = date au plus tard du sommet cible
+        // Un arc est sur le chemin critique si la marge est nulle
+        // Vérifier que la date au plus tôt du sommet source + durée = date au plus tôt du sommet cible
+        // ET que la date au plus tard du sommet source + durée = date au plus tard du sommet cible
         const isEarlyPathCritical = sourceNode.earlyDate + edge.duration === targetNode.earlyDate;
         const isLatePathCritical = sourceNode.lateDate + edge.duration === targetNode.lateDate;
         
-        edge.isCritical = isEarlyPathCritical && isLatePathCritical;
+        // Vérifier également que les deux nœuds ont une marge nulle
+        const sourceHasZeroMargin = sourceNode.earlyDate === sourceNode.lateDate;
+        const targetHasZeroMargin = targetNode.earlyDate === targetNode.lateDate;
+        
+        edge.isCritical = isEarlyPathCritical && isLatePathCritical && sourceHasZeroMargin && targetHasZeroMargin;
       }
     });
   };
   
   // Générer la séquence des tâches du chemin critique
   const getCriticalPathSequence = (nodes, edges) => {
-    // Filtrer les arcs critiques
+    // Filtrer les arcs critiques (non fictifs)
     const criticalEdges = edges.filter(edge => edge.isCritical && !edge.isFictitious);
     
     if (criticalEdges.length === 0) return 'Aucun';
     
-    // Trouver le premier arc (celui qui part du nœud 0)
-    let currentEdge = criticalEdges.find(edge => edge.source === '0');
-    if (!currentEdge) currentEdge = criticalEdges[0]; // Fallback si pas trouvé
+    // Identifier les nœuds du chemin critique (ceux avec marge nulle)
+    const criticalNodes = nodes.filter(node => node.earlyDate === node.lateDate);
+    const criticalNodeIds = criticalNodes.map(node => node.id);
     
-    // Construire la séquence
+    // Trouver le premier arc (celui qui part du nœud 0 ou du premier nœud critique)
+    let startNodeId = criticalNodeIds.includes('0') ? '0' : criticalNodeIds[0];
+    let currentEdge = criticalEdges.find(edge => edge.source === startNodeId);
+    
+    // Si aucun arc n'est trouvé, prendre le premier arc critique
+    if (!currentEdge && criticalEdges.length > 0) {
+      currentEdge = criticalEdges[0];
+    }
+    
+    // Si toujours aucun arc, retourner les nœuds critiques
+    if (!currentEdge) {
+      if (criticalNodeIds.length > 0) {
+        return 'Nœuds critiques: ' + criticalNodeIds.join(' → ');
+      }
+      return 'Aucun';
+    }
+    
+    // Construire la séquence des tâches
     const sequence = [currentEdge.taskName];
     let currentTarget = currentEdge.target;
     
-    // Parcourir le chemin critique
-    let continueLoop = true;
-    while (continueLoop) {
+    // Parcourir le chemin critique en suivant les arcs
+    let maxIterations = criticalEdges.length * 2; // Gérer les boucles potentielles
+    let iterations = 0;
+    
+    while (iterations < maxIterations) {
+      iterations++;
+      
       // Capture la valeur actuelle de currentTarget pour éviter les problèmes de fermeture
       const currentNodeTarget = currentTarget;
       
       // Trouver le prochain arc critique qui part du nœud cible actuel
-      const nextEdge = criticalEdges.find(edge => edge.source === currentNodeTarget && !sequence.includes(edge.taskName));
+      const nextEdge = criticalEdges.find(edge => 
+        edge.source === currentNodeTarget && 
+        !sequence.includes(edge.taskName)
+      );
       
       if (!nextEdge) {
-        continueLoop = false; // Fin du chemin critique
+        break; // Fin du chemin critique
       } else {
         sequence.push(nextEdge.taskName);
         currentTarget = nextEdge.target;
       }
     }
     
+    // Si la séquence est vide ou incomplète, afficher les noms des tâches critiques
+    if (sequence.length === 0 || sequence.length < criticalEdges.length / 2) {
+      return criticalEdges.map(edge => edge.taskName).join(' → ');
+    }
+    
     return sequence.join(' → ');
   };
   
   // Nous n'avons plus besoin de formater les dates car nous ne les affichons plus
-  
   // Fonction pour calculer la position d'une tâche en fonction des unités de temps
   const calculateTaskPosition = (task) => {
-    if (!ganttTasks.length || !task.start || !task.end) return { left: 0, width: 0 };
-    
-    // Calculer la durée totale du projet en jours
     const projectStart = new Date(startDate);
-    const projectEnd = projectEndDate || new Date(Math.max(...ganttTasks.map(t => new Date(t.end).getTime())));
-    const totalDays = Math.max(20, Math.ceil((projectEnd - projectStart) / (1000 * 60 * 60 * 24)));
+    
+    // Trouver la durée maximale des tâches pour s'assurer que toutes sont visibles
+    const maxTaskDuration = Math.max(...ganttTasks.map(t => {
+      const tStart = new Date(t.start);
+      const tEnd = new Date(t.end);
+      return Math.ceil((tEnd - tStart) / (1000 * 60 * 60 * 24));
+    }), 0);
+    
+    // Trouver la date de fin la plus tardive parmi toutes les tâches
+    const latestTaskEnd = Math.max(...ganttTasks.map(t => new Date(t.end).getTime()));
+    
+    // Calculer le nombre total de jours à afficher (au moins 30 ou la durée maximale + 5)
+    const totalDays = Math.max(30, maxTaskDuration + 5, Math.ceil((latestTaskEnd - projectStart) / (1000 * 60 * 60 * 24)) + 3);
     
     if (totalDays <= 0) return { left: 0, width: 0 };
     
@@ -584,31 +631,46 @@ function App() {
   
   // Fonction pour générer les unités de temps de la timeline
   const generateTimeUnits = () => {
-    if (!projectEndDate) return [];
+    if (!projectEndDate && ganttTasks.length === 0) return [];
     
     const projectStart = new Date(startDate);
-    const totalDays = Math.max(20, Math.ceil((projectEndDate - projectStart) / (1000 * 60 * 60 * 24)));
-    const step = Math.ceil(totalDays / 20); // Afficher environ 20 unités
     
+    // Trouver la durée maximale des tâches
+    const maxTaskDuration = Math.max(...ganttTasks.map(task => {
+      const taskStart = new Date(task.start);
+      const taskEnd = new Date(task.end);
+      return Math.ceil((taskEnd - taskStart) / (1000 * 60 * 60 * 24));
+    }), 0);
+    
+    // Trouver la date de fin la plus tardive parmi toutes les tâches
+    const latestTaskEnd = Math.max(...ganttTasks.map(task => new Date(task.end).getTime()));
+    const daysToLatestEnd = Math.ceil((latestTaskEnd - projectStart) / (1000 * 60 * 60 * 24));
+    
+    // Calculer le nombre total de jours à afficher (au moins 30 ou la durée maximale + 5)
+    const displayDays = Math.max(30, maxTaskDuration + 5, daysToLatestEnd + 3);
+    
+    // Déterminer le nombre d'unités à afficher (entre 30 et 50)
+    const numUnits = Math.min(Math.max(30, displayDays), 50);
+    const step = Math.max(1, Math.ceil(displayDays / numUnits));
+    
+    // Générer les unités avec un pas adaptatif
     const units = [];
-    for (let i = 0; i <= totalDays; i += step) {
+    for (let i = 0; i <= displayDays; i += step) {
       units.push(i);
     }
     
     // S'assurer que le dernier jour est affiché
-    if (units[units.length - 1] < totalDays - 1) {
-      units.push(totalDays - 1);
+    if (units[units.length - 1] < displayDays) {
+      units.push(displayDays);
     }
     
     return units;
   };
   
-  // Nous n'avons plus besoin de générer les lignes de temps ni d'afficher les colonnes de dates
-  
   // Effet pour dessiner le diagramme de Gantt
   useEffect(() => {
     if (ganttRef.current && ganttTasks.length > 0) {
-      // Le diagramme est déjà rendu par React, pas besoin de code supplémentaire ici
+      // Le diagramme est du00e9ju00e0 rendu par React, pas besoin de code supplu00e9mentaire ici
     }
   }, [ganttTasks]);
 
@@ -742,7 +804,7 @@ function App() {
           {showPert && pertTasks && pertTasks.nodes && pertTasks.nodes.length > 0 ? (
             <div className="pert-container" ref={pertRef}>
               <div className="pert-chart">
-                <svg className="pert-svg" viewBox="0 0 1500 800" preserveAspectRatio="xMidYMid meet">
+                <svg className="pert-svg" viewBox="0 0 1500 800" preserveAspectRatio="xMinYMin meet" width="100%" height="auto">
                   {/* Définir les flèches pour les arcs */}
                   <defs>
                     <marker
@@ -765,6 +827,11 @@ function App() {
                     >
                       <polygon points="0 0, 12 4.5, 0 9" fill="#e74c3c" />
                     </marker>
+                    
+                    {/* Filtre d'ombre pour les u00e9tiquettes */}
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="rgba(0,0,0,0.3)" />
+                    </filter>
                   </defs>
                   
                   {/* Organiser et dessiner les sommets et les arcs par niveaux */}
@@ -779,19 +846,57 @@ function App() {
                     
                     // Calculer les positions des sommets par niveau
                     const nodePositions = {};
-                    const baseX = 200; // Position X de base augmentée
-                    const baseY = 150; // Position Y de base augmentée
-                    const xSpacing = 250; // Espacement horizontal entre les niveaux augmenté
-                    const ySpacing = 150; // Espacement vertical entre les sommets d'un même niveau augmenté
                     
-                    // Pour chaque niveau, positionner les sommets verticalement
-                    Object.keys(levels).forEach(level => {
+                    // Calcul des dimensions responsives en fonction de la taille du SVG
+                    const svgWidth = 1500;
+                    const svgHeight = 800;
+                    
+                    // Calculer les espacements en fonction du nombre de niveaux et de nœuds
+                    const numLevels = Object.keys(levels).length;
+                    const maxNodesInAnyLevel = Math.max(...Object.values(levels).map(nodes => nodes.length));
+                    
+                    // Calcul dynamique des espacements
+                    const baseX = svgWidth * 0.1; // 10% de la largeur du SVG
+                    const baseY = svgHeight * 0.15; // 15% de la hauteur du SVG
+                    const xSpacing = numLevels > 1 ? (svgWidth * 0.8) / (numLevels - 1) : svgWidth * 0.4; // 80% de la largeur divisée par le nombre de niveaux - 1
+                    const ySpacing = maxNodesInAnyLevel > 1 ? (svgHeight * 0.7) / (maxNodesInAnyLevel - 1) : svgHeight * 0.35; // 70% de la hauteur divisée par le nombre max de nœuds - 1
+                    
+                    // Optimisation du placement des sommets pour minimiser les croisements
+                    // D'abord, trier les sommets dans chaque niveau pour réduire les croisements
+                    Object.keys(levels).sort((a, b) => parseInt(a) - parseInt(b)).forEach(level => {
                       const nodesInLevel = levels[level];
                       const levelX = baseX + parseInt(level) * xSpacing;
                       
-                      // Centrer les sommets verticalement dans leur niveau
-                      const levelHeight = nodesInLevel.length * ySpacing;
-                      const startY = baseY + (600 - levelHeight) / 2;
+                      // Pour les niveaux > 0, essayer d'ordonner les sommets pour minimiser les croisements
+                      if (parseInt(level) > 0 && nodesInLevel.length > 1) {
+                        // Calculer un score pour chaque nœud basé sur ses connexions
+                        nodesInLevel.forEach(node => {
+                          // Trouver les arcs entrants vers ce nœud
+                          const incomingEdges = pertTasks.edges.filter(edge => edge.target === node.id);
+                          
+                          // Calculer la position moyenne des sources
+                          let avgSourceY = 0;
+                          let sourceCount = 0;
+                          
+                          incomingEdges.forEach(edge => {
+                            const sourceNode = pertTasks.nodes.find(n => n.id === edge.source);
+                            if (sourceNode && nodePositions[sourceNode.id]) {
+                              avgSourceY += nodePositions[sourceNode.id].y;
+                              sourceCount++;
+                            }
+                          });
+                          
+                          // Stocker cette position moyenne comme score pour le tri
+                          node.positionScore = sourceCount > 0 ? avgSourceY / sourceCount : 0;
+                        });
+                        
+                        // Trier les nœuds par leur score de position
+                        nodesInLevel.sort((a, b) => a.positionScore - b.positionScore);
+                      }
+                      
+                      // Centrer les sommets verticalement dans leur niveau de manière responsive
+                      const levelHeight = (nodesInLevel.length - 1) * ySpacing;
+                      const startY = baseY + (svgHeight * 0.7 - levelHeight) / 2;
                       
                       nodesInLevel.forEach((node, idx) => {
                         nodePositions[node.id] = {
@@ -803,6 +908,10 @@ function App() {
                     
                     // Générer les éléments JSX pour les arcs et les sommets
                     const elements = [];
+                    
+                    // Pré-traitement pour éviter les chevauchements d'étiquettes
+                    // Stocker les positions des étiquettes pour détecter les chevauchements
+                    const labelPositions = [];
                     
                     // Dessiner les arcs (tâches)
                     pertTasks.edges.forEach((edge, index) => {
@@ -829,10 +938,32 @@ function App() {
                       const dy = targetY - sourceY;
                       const distance = Math.sqrt(dx * dx + dy * dy);
                       
-                      // Déterminer si l'arc doit être courbé vers le haut ou vers le bas
-                      // Utiliser une courbure différente selon la position relative des sommets
+                      // Stratégie avancée pour éviter les croisements d'arcs
                       let curveDirection = 0;
                       let curveMagnitude = 1.0; // Facteur d'amplification de la courbure
+                      
+                      // Déterminer si cet arc risque de croiser d'autres arcs
+                      const potentialCrossings = pertTasks.edges.filter(otherEdge => {
+                        if (otherEdge.id === edge.id) return false; // Ignorer l'arc lui-même
+                        
+                        // Vérifier si les arcs partagent le même niveau source ou cible
+                        const sameSourceLevel = pertTasks.nodes.find(n => n.id === otherEdge.source)?.level === sourceNode.level;
+                        const sameTargetLevel = pertTasks.nodes.find(n => n.id === otherEdge.target)?.level === targetNode.level;
+                        
+                        // Vérifier si les arcs se croisent potentiellement
+                        if (sameSourceLevel || sameTargetLevel) {
+                          const otherSourcePos = nodePositions[otherEdge.source];
+                          const otherTargetPos = nodePositions[otherEdge.target];
+                          
+                          if (!otherSourcePos || !otherTargetPos) return false;
+                          
+                          // Vérifier si les arcs se croisent en comparant leurs positions verticales
+                          return (sourceY < otherSourcePos.y && targetY > otherTargetPos.y) || 
+                                 (sourceY > otherSourcePos.y && targetY < otherTargetPos.y);
+                        }
+                        
+                        return false;
+                      });
                       
                       // Traitement spécial pour les arcs partant du nœud 0 (initial)
                       if (edge.source === '0') {
@@ -848,15 +979,29 @@ function App() {
                           curveDirection = -1 + (2 * arcIndex / (arcsFromStart - 1));
                           curveMagnitude = 2.0; // Augmenter la courbure pour les arcs du début
                         }
+                      } else if (potentialCrossings.length > 0) {
+                        // Si l'arc risque de croiser d'autres arcs, ajuster sa courbure
+                        curveDirection = (index % 2 === 0) ? -1.5 : 1.5; // Courbure plus prononcée
+                        curveMagnitude = 1.5 + (potentialCrossings.length * 0.2); // Augmenter la courbure en fonction du nombre de croisements potentiels
                       } else if (Math.abs(dy) < 50) { // Si les sommets sont presque au même niveau vertical
                         curveDirection = (index % 2 === 0) ? -1 : 1; // Alterner les courbures
                       } else {
                         curveDirection = (dy > 0) ? -1 : 1; // Courber dans la direction opposée à la pente
                       }
                       
-                      // Calculer le point de contrôle avec une courbure proportionnelle à la distance
+                      // Calculer le point de contrôle avec une courbure optimisée
                       const controlX = sourceX + dx * 0.5;
-                      const controlY = sourceY + dy * 0.5 + curveDirection * Math.min(distance * 0.2, 50) * curveMagnitude;
+                      let controlY;
+                      
+                      // Ajuster le point de contrôle en fonction du type d'arc
+                      if (edge.isFictitious) {
+                        // Les arcs fictifs ont une courbure plus légère
+                        const flattenFactor = 0.7;
+                        controlY = sourceY + dy * 0.5 + curveDirection * Math.min(distance * 0.15, 40) * flattenFactor;
+                      } else {
+                        // Arcs normaux avec courbure standard
+                        controlY = sourceY + dy * 0.5 + curveDirection * Math.min(distance * 0.25, 70) * curveMagnitude;
+                      }
                     
                       // Ajouter l'arc (ligne courbe) aux éléments
                       elements.push(
@@ -869,20 +1014,94 @@ function App() {
                             strokeDasharray={edge.isFictitious ? '5,5' : 'none'} // Ligne en pointillés pour les tâches fictives
                             markerEnd={edge.isCritical ? 'url(#arrowhead-critical)' : 'url(#arrowhead)'}
                           />
-                          {/* Texte de l'arc avec une meilleure position et taille */}
-                          <text
-                            x={controlX}
-                            y={controlY - 15 * curveDirection}
-                            textAnchor="middle"
-                            fill={edge.isCritical ? '#e74c3c' : '#3498db'}
-                            fontWeight="bold"
-                            fontSize="14"
-                            className="pert-edge-label"
-                            dy={curveDirection > 0 ? '1em' : '-0.5em'}
-                            dominantBaseline="middle"
-                          >
-                            {edge.taskName} ({edge.duration})
-                          </text>
+                          {/* Calculer la position optimale de l'étiquette */}
+                          {(() => {
+                            // Position de base pour l'étiquette
+                            let labelX = sourceX + dx * (edge.isFictitious ? 0.45 : 0.5);
+                            let labelY = sourceY + dy * (edge.isFictitious ? 0.35 : 0.4) + 
+                                      (curveDirection * Math.min(Math.abs(dy) * (edge.isFictitious ? 0.1 : 0.15), 
+                                      edge.isFictitious ? 15 : 25));
+                            
+                            // Texte de l'étiquette
+                            const labelText = `${edge.taskName} (${edge.duration})`;
+                            const fontSize = edge.isFictitious ? 12 : 14;
+                            
+                            // Estimer la largeur et la hauteur de l'étiquette
+                            const estimatedWidth = labelText.length * fontSize * 0.6;
+                            const estimatedHeight = fontSize * 1.2;
+                            
+                            // Définir la zone de l'étiquette
+                            const labelBounds = {
+                              x1: labelX - estimatedWidth / 2,
+                              y1: labelY - estimatedHeight / 2,
+                              x2: labelX + estimatedWidth / 2,
+                              y2: labelY + estimatedHeight / 2
+                            };
+                            
+                            // Vérifier les chevauchements avec les étiquettes existantes
+                            let overlap = false;
+                            let adjustmentAttempts = 0;
+                            const maxAdjustments = 5;
+                            
+                            while (adjustmentAttempts < maxAdjustments) {
+                              overlap = false;
+                              
+                              // Vérifier le chevauchement avec chaque étiquette existante
+                              for (const existingLabel of labelPositions) {
+                                if (
+                                  labelBounds.x1 < existingLabel.x2 &&
+                                  labelBounds.x2 > existingLabel.x1 &&
+                                  labelBounds.y1 < existingLabel.y2 &&
+                                  labelBounds.y2 > existingLabel.y1
+                                ) {
+                                  overlap = true;
+                                  break;
+                                }
+                              }
+                              
+                              if (!overlap) break;
+                              
+                              // Ajuster la position si chevauchement détecté
+                              if (Math.abs(dx) > Math.abs(dy)) {
+                                // Ajuster verticalement si l'arc est plus horizontal
+                                labelY += (adjustmentAttempts % 2 === 0 ? 1 : -1) * (estimatedHeight * 0.8) * (adjustmentAttempts + 1);
+                              } else {
+                                // Ajuster horizontalement si l'arc est plus vertical
+                                labelX += (adjustmentAttempts % 2 === 0 ? 1 : -1) * (estimatedWidth * 0.3) * (adjustmentAttempts + 1);
+                              }
+                              
+                              // Mettre à jour les limites après ajustement
+                              labelBounds.x1 = labelX - estimatedWidth / 2;
+                              labelBounds.y1 = labelY - estimatedHeight / 2;
+                              labelBounds.x2 = labelX + estimatedWidth / 2;
+                              labelBounds.y2 = labelY + estimatedHeight / 2;
+                              
+                              adjustmentAttempts++;
+                            }
+                            
+                            // Ajouter cette étiquette à la liste des positions
+                            labelPositions.push({...labelBounds, id: edge.id});
+                            
+                            return (
+                              <text
+                                x={labelX}
+                                y={labelY}
+                                textAnchor="middle"
+                                fill={edge.isCritical ? '#e74c3c' : '#3498db'}
+                                fontWeight="bold"
+                                fontSize={edge.isFictitious ? "12" : "14"}
+                                className="pert-edge-label"
+                                dominantBaseline="middle"
+                                stroke="white"
+                                strokeWidth="0.7"
+                                paintOrder="stroke"
+                                filter="url(#shadow)"
+                                opacity={edge.isFictitious ? "0.9" : "1"}
+                              >
+                                {labelText}
+                              </text>
+                            );
+                          })()}
                         </g>
                       );
                     });
@@ -897,9 +1116,23 @@ function App() {
                       const y = pos.y;
                       
                       // Vérifier si le sommet est sur le chemin critique
-                      const isOnCriticalPath = pertTasks.edges.some(edge => 
-                        edge.isCritical && (edge.source === node.id || edge.target === node.id)
-                      );
+                      // Un nœud est sur le chemin critique si sa marge est nulle (date au plus tôt = date au plus tard)
+                      const isOnCriticalPath = node.earlyDate === node.lateDate;
+                      
+                      // Alternative: un nœud est sur le chemin critique s'il est connecté par des arcs critiques
+                      // (sauf pour le premier et dernier nœud qui n'ont qu'un seul arc)
+                      /*
+                      const incomingCriticalEdges = pertTasks.edges.filter(edge => edge.isCritical && edge.target === node.id);
+                      const outgoingCriticalEdges = pertTasks.edges.filter(edge => edge.isCritical && edge.source === node.id);
+                      
+                      const isOnCriticalPath = 
+                        // Premier nœud (seulement des arcs sortants)
+                        (node.id === '0' && outgoingCriticalEdges.length > 0) || 
+                        // Dernier nœud (seulement des arcs entrants)
+                        (outgoingCriticalEdges.length === 0 && incomingCriticalEdges.length > 0) ||
+                        // Nœuds intermédiaires (arcs entrants ET sortants)
+                        (incomingCriticalEdges.length > 0 && outgoingCriticalEdges.length > 0);
+                      */
                       
                       // Ajouter le sommet aux éléments
                       elements.push(
