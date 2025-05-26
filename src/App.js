@@ -59,7 +59,7 @@ function App() {
       return;
     }
     
-    // Vérification que la durée est un nombre positif
+    //Vérification que la durée est un nombre positif avant d'avancer 
     if (isNaN(newTask.duration) || parseInt(newTask.duration) <= 0) {
       setErrorMessage('La durée doit être un nombre positif');
       return;
