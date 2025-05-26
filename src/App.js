@@ -75,7 +75,7 @@ function App() {
       }
     }
     
-    // Création de la tâche avec un ID généré automatiquement
+    // Création de la tâche avec un ID généré automatiquement pour etre utlisé pour identitifier les taches precedentes
     const taskToAdd = {
       id: generateUniqueId(),
       name: newTask.name,
